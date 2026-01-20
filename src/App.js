@@ -26,6 +26,8 @@ import {
   PlusCircle,
   Shield,
   Edit3,
+  Edit,
+  X,
 } from "lucide-react";
 import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
@@ -87,6 +89,7 @@ const COLORS = {
   success: "#A5D6A7",
   fuel: "#FFB74D",
   adblue: "#4FC3F7",
+  edit: "#FFD54F",
 };
 
 const STYLES = {
@@ -98,6 +101,7 @@ const STYLES = {
     flexDirection: "column",
     fontFamily: "sans-serif",
     overflow: "hidden",
+    position: "relative",
   },
   header: {
     backgroundColor: COLORS.card,
@@ -165,6 +169,19 @@ const STYLES = {
     alignItems: "center",
     justifyContent: "center",
   },
+  btnEdit: {
+    padding: "6px 12px",
+    backgroundColor: COLORS.edit,
+    color: "#1E140F",
+    border: "none",
+    borderRadius: "6px",
+    fontSize: "10px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   btnSmall: {
     padding: "8px 12px",
     backgroundColor: COLORS.accent,
@@ -214,7 +231,7 @@ const downloadJSON = (data, filename) => {
   a.click();
 };
 
-// --- MAIN APP COMPONENT ---
+// --- MAIN APP ---
 export default function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState("dashboard");
@@ -227,9 +244,35 @@ export default function App() {
   const [viewBusId, setViewBusId] = useState(null);
   const [notification, setNotification] = useState(null);
 
+  // Custom Modal State
+  const [modal, setModal] = useState(null);
+
   const showNotif = (message, type = "success") => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
+  };
+
+  const safeAlert = (title, message, isDanger = false) => {
+    setModal({
+      type: "alert",
+      title,
+      message,
+      isDanger,
+      onConfirm: () => setModal(null),
+    });
+  };
+
+  const safeConfirm = (title, message, onConfirm, isDanger = false) => {
+    setModal({
+      type: "confirm",
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setModal(null);
+      },
+      isDanger,
+    });
   };
 
   if (!auth) {
@@ -238,12 +281,7 @@ export default function App() {
         <div>
           <AlertTriangle className="h-12 w-12 mx-auto mb-4" />
           <h2 className="text-xl font-bold mb-2">Configuration Needed</h2>
-          <p>
-            Please open <strong>App.js</strong> and scroll to line 29.
-          </p>
-          <p className="mt-2 text-sm text-[#8D6E63]">
-            Paste your Firebase keys there.
-          </p>
+          <p>Please paste your keys in App.js</p>
         </div>
       </div>
     );
@@ -299,7 +337,7 @@ export default function App() {
     };
   }, [user]);
 
-  // View Handlers
+  // Handlers
   const handleEditEntry = (entry) => {
     setSelectedEntry(entry);
     setView("edit_log");
@@ -317,10 +355,16 @@ export default function App() {
     setView("bus_profile");
   };
 
+  // FIXED: Logic for Edit Profile to properly switch views
+  const handleEditProfile = (busId) => {
+    setViewBusId(busId);
+    setView("edit_bus_profile");
+  };
+
   if (loading)
     return (
       <div className="flex h-screen items-center justify-center bg-[#1E140F] text-[#C19A6B] animate-pulse font-bold tracking-widest">
-        Bismillah! Ingenious School LOADING...
+        Bismillah! Ingenious School Loading...
       </div>
     );
 
@@ -341,11 +385,52 @@ export default function App() {
                 letterSpacing: "1px",
               }}
             >
-              TRANSPORT MANAGEMENT APP (Devlpd. by Murtaza Asif)
+              School Transport Management App (By Mir Murtaza)
             </p>
           </div>
         </div>
       </header>
+
+      {/* CUSTOM MODAL OVERLAY */}
+      {modal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2C1E16] border border-[#4A3426] rounded-xl p-6 w-full max-w-sm shadow-2xl animate-fade-in">
+            <h3
+              className={`text-lg font-bold mb-2 flex items-center ${
+                modal.isDanger ? "text-[#EF9A9A]" : "text-[#C19A6B]"
+              }`}
+            >
+              {modal.isDanger ? (
+                <AlertTriangle className="mr-2 h-5 w-5" />
+              ) : (
+                <Shield className="mr-2 h-5 w-5" />
+              )}
+              {modal.title}
+            </h3>
+            <p className="text-[#F2E6D8] text-sm mb-6 leading-relaxed">
+              {modal.message}
+            </p>
+            <div className="flex justify-end gap-3">
+              {modal.type === "confirm" && (
+                <button
+                  onClick={() => setModal(null)}
+                  className="px-4 py-2 rounded-lg bg-transparent border border-[#8D6E63] text-[#8D6E63] text-sm font-bold"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                onClick={modal.onConfirm}
+                className={`px-4 py-2 rounded-lg text-[#1E140F] text-sm font-bold ${
+                  modal.isDanger ? "bg-[#EF9A9A]" : "bg-[#C19A6B]"
+                }`}
+              >
+                {modal.type === "confirm" ? "Proceed" : "Okay"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {notification && (
         <div
@@ -380,6 +465,8 @@ export default function App() {
             setView={setView}
             preSelectedBusId={targetBusId}
             showNotif={showNotif}
+            safeAlert={safeAlert}
+            safeConfirm={safeConfirm}
           />
         )}
         {view === "fuel" && (
@@ -388,6 +475,7 @@ export default function App() {
             fuelLogs={fuelLogs}
             setView={setView}
             showNotif={showNotif}
+            safeAlert={safeAlert}
           />
         )}
         {view === "view_log" && (
@@ -395,6 +483,7 @@ export default function App() {
             entry={selectedEntry}
             setView={setView}
             handleEditEntry={handleEditEntry}
+            buses={buses}
           />
         )}
         {view === "edit_log" && (
@@ -415,10 +504,20 @@ export default function App() {
             entries={entries}
             fuelLogs={fuelLogs}
             showNotif={showNotif}
+            onEdit={handleEditProfile}
+            safeConfirm={safeConfirm}
           />
         )}
         {view === "bus_profile" && (
           <BusProfileView busId={viewBusId} buses={buses} setView={setView} />
+        )}
+        {view === "edit_bus_profile" && (
+          <EditBusProfileForm
+            busId={viewBusId}
+            buses={buses}
+            setView={setView}
+            showNotif={showNotif}
+          />
         )}
       </main>
 
@@ -489,9 +588,15 @@ const NavBtn = ({ icon: Icon, label, active, onClick }) => (
   </button>
 );
 
-// --- COMPONENT: ENTRY DETAILS VIEW (Read-Only) ---
-const ViewLogDetails = ({ entry, setView, handleEditEntry }) => {
+// --- 1. ENTRY DETAILS VIEW (Read-Only) ---
+const ViewLogDetails = ({ entry, setView, handleEditEntry, buses }) => {
   if (!entry) return null;
+  const b = buses.find((x) => x.busNumber === entry.busNumber);
+  const studentsAssigned = b?.assignedStudents || 0;
+  const teachersAssigned = b?.assignedTeachers || 0;
+  const stuAbsent = studentsAssigned - entry.studentsPresent;
+  const tchAbsent = teachersAssigned - entry.teachersPresent;
+
   return (
     <div className="animate-fade-in space-y-4">
       <div className="flex items-center mb-6">
@@ -523,13 +628,27 @@ const ViewLogDetails = ({ entry, setView, handleEditEntry }) => {
           </div>
           <div>
             <p className="text-[#8D6E63] text-xs uppercase">Students</p>
-            <p className="font-bold">{entry.studentsPresent}</p>
+            <p className="font-bold">
+              {entry.studentsPresent} (Abs: {stuAbsent})
+            </p>
           </div>
           <div>
             <p className="text-[#8D6E63] text-xs uppercase">Teachers</p>
-            <p className="font-bold">{entry.teachersPresent}</p>
+            <p className="font-bold">
+              {entry.teachersPresent} (Abs: {tchAbsent})
+            </p>
           </div>
         </div>
+
+        {entry.remarks && (
+          <div className="mt-3 pt-3 border-t border-[#4A3426] mb-4">
+            <p className="text-[#8D6E63] text-xs uppercase font-bold mb-1">
+              Remarks
+            </p>
+            <p className="text-[#F2E6D8] text-sm italic">"{entry.remarks}"</p>
+          </div>
+        )}
+
         <button
           onClick={() => handleEditEntry(entry)}
           style={STYLES.btnPrimary}
@@ -541,7 +660,7 @@ const ViewLogDetails = ({ entry, setView, handleEditEntry }) => {
   );
 };
 
-// --- COMPONENT: BUS PROFILE VIEW (Fixed Definition) ---
+// --- COMPONENT: BUS PROFILE VIEW (Read Only on Dashboard - Edit Removed) ---
 const BusProfileView = ({ busId, buses, setView }) => {
   const b = buses.find((x) => x.id === busId);
   if (!b) return null;
@@ -621,7 +740,7 @@ const BusProfileView = ({ busId, buses, setView }) => {
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label style={STYLES.label}>Assigned</label>
+            <label style={STYLES.label}>Capacity</label>
             <div className="text-[#F2E6D8] text-xs">
               {b.assignedStudents} Students
             </div>
@@ -643,7 +762,7 @@ const BusProfileView = ({ busId, buses, setView }) => {
         <h4 className="text-[#C19A6B] text-xs font-bold uppercase mb-2 border-b border-[#4A3426] pb-1">
           Compliance Status
         </h4>
-        <div className="grid grid-cols-2 gap-3 text-xs">
+        <div className="grid grid-cols-2 gap-3 text-xs mb-4">
           {docFields.map((f) => {
             const s = check(b[f.k]);
             return (
@@ -667,7 +786,177 @@ const BusProfileView = ({ busId, buses, setView }) => {
   );
 };
 
-// --- COMPONENT: REPORTS VIEW ---
+// --- COMPONENT: EDIT BUS PROFILE FORM ---
+const EditBusProfileForm = ({ busId, buses, setView, showNotif }) => {
+  const b = buses.find((x) => x.id === busId);
+  const [f, setF] = useState({});
+
+  useEffect(() => {
+    if (b) setF(b); // Initialize form with existing bus data
+  }, [b]);
+
+  const save = async () => {
+    await updateDoc(
+      doc(db, "artifacts", appId, "public", "data", "buses", busId),
+      f
+    );
+    showNotif("BUS PROFILE UPDATED!");
+    setView("admin"); // Return to manage tab
+  };
+
+  if (!b) return null;
+
+  return (
+    <div className="space-y-6 p-2">
+      <div className="flex items-center mb-4">
+        <button
+          onClick={() => setView("admin")}
+          className="mr-3 text-[#8D6E63]"
+        >
+          <ChevronRight className="rotate-180" />
+        </button>
+        <h2 className="text-xl font-bold text-[#F2E6D8]">
+          Edit Bus {b.busNumber}
+        </h2>
+      </div>
+      <div style={STYLES.card}>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label style={STYLES.label}>BUS NO</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.busNumber || ""}
+              onChange={(e) => setF({ ...f, busNumber: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>REG NO</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.regNumber || ""}
+              onChange={(e) => setF({ ...f, regNumber: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label style={STYLES.label}>DRIVER</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.driverName || ""}
+              onChange={(e) => setF({ ...f, driverName: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>PHONE</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.driverContact || ""}
+              onChange={(e) => setF({ ...f, driverContact: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label style={STYLES.label}>ATTENDANT</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.attendantName || ""}
+              onChange={(e) => setF({ ...f, attendantName: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>PHONE</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.attendantContact || ""}
+              onChange={(e) => setF({ ...f, attendantContact: e.target.value })}
+            />
+          </div>
+        </div>
+
+        <h4 className="text-xs text-[#C19A6B] font-bold uppercase mt-4 mb-2">
+          Capacities & Specs
+        </h4>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label style={STYLES.label}>STU CAP</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.assignedStudents || ""}
+              onChange={(e) => setF({ ...f, assignedStudents: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>TCH CAP</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.assignedTeachers || ""}
+              onChange={(e) => setF({ ...f, assignedTeachers: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>TANK (L)</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.tankCapacity || ""}
+              onChange={(e) => setF({ ...f, tankCapacity: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>MILEAGE</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.estMileage || ""}
+              onChange={(e) => setF({ ...f, estMileage: e.target.value })}
+            />
+          </div>
+        </div>
+
+        <h4 className="text-xs text-[#C19A6B] font-bold uppercase mt-4 mb-2">
+          Document Dates
+        </h4>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            "insuranceExpiry",
+            "permitExpiry",
+            "taxExpiry",
+            "fitnessExpiry",
+            "pollutionExpiry",
+            "gpsExpiry",
+            "cameraExpiry",
+            "extinguisherExpiry",
+            "firstAidExpiry",
+          ].map((k) => (
+            <div key={k}>
+              <label style={STYLES.label}>
+                {k.replace("Expiry", "").toUpperCase()}
+              </label>
+              <input
+                className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+                type="date"
+                value={f[k] || ""}
+                onChange={(e) => setF({ ...f, [k]: e.target.value })}
+              />
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={save}
+          style={{ ...STYLES.btnPrimary, marginTop: "20px" }}
+        >
+          SAVE CHANGES
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// --- COMPONENT: REPORTS VIEW (Restored & Fixed) ---
 const ReportsView = ({ entries, buses, fuelLogs }) => {
   const [startDate, setStartDate] = useState(
     new Date().toISOString().split("T")[0]
@@ -705,9 +994,18 @@ const ReportsView = ({ entries, buses, fuelLogs }) => {
         Distance: e.distance,
         StudentsPresent: e.studentsPresent,
         TeachersPresent: e.teachersPresent,
+        Remarks: e.remarks || "",
+        TankCapacity: b.tankCapacity || "",
+        EstMileage: b.estMileage || "",
         InsuranceExpiry: b.insuranceExpiry || "",
         PermitExpiry: b.permitExpiry || "",
         FitnessExpiry: b.fitnessExpiry || "",
+        TaxExpiry: b.taxExpiry || "",
+        PollutionExpiry: b.pollutionExpiry || "",
+        GPSExpiry: b.gpsExpiry || "",
+        CameraExpiry: b.cameraExpiry || "",
+        FireExtExpiry: b.extinguisherExpiry || "",
+        FirstAidExpiry: b.firstAidExpiry || "",
       };
     });
     downloadCSV(reportData, `Master_Report_${startDate}_to_${endDate}.csv`);
@@ -743,7 +1041,7 @@ const ReportsView = ({ entries, buses, fuelLogs }) => {
           </div>
         </div>
         <button onClick={generateReport} style={STYLES.btnPrimary}>
-          <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel (CSV)
+          <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Master Report
         </button>
       </div>
       <h3 className="text-[#C19A6B] text-xs font-bold uppercase mt-6 mb-2">
@@ -770,8 +1068,338 @@ const ReportsView = ({ entries, buses, fuelLogs }) => {
   );
 };
 
-// --- COMPONENT: FUEL MANAGER ---
-const FuelManager = ({ buses, fuelLogs, setView, showNotif }) => {
+// --- COMPONENT: ENTRY FORM ---
+const EntryForm = ({
+  buses,
+  setView,
+  preSelectedBusId,
+  showNotif,
+  safeAlert,
+  safeConfirm,
+}) => {
+  const [id, setId] = useState(preSelectedBusId || "");
+  const [odo, setOdo] = useState("");
+  const [stu, setStu] = useState("");
+  const [tch, setTch] = useState("");
+  const [remarks, setRemarks] = useState("");
+  const b = buses.find((x) => x.id === id);
+
+  useEffect(() => {
+    if (preSelectedBusId) setId(preSelectedBusId);
+  }, [preSelectedBusId]);
+
+  const save = async () => {
+    if (!id || !odo) return;
+    const lastOdo = b.lastOdometer || 0;
+    const currentOdo = parseFloat(odo);
+    const dist = currentOdo - lastOdo;
+    const studentsPresent = parseInt(stu) || 0;
+    const teachersPresent = parseInt(tch) || 0;
+    const studentsAssigned = b.assignedStudents || 0;
+    const teachersAssigned = b.assignedTeachers || 0;
+
+    const executeSave = async () => {
+      await addDoc(
+        collection(db, "artifacts", appId, "public", "data", "entries"),
+        {
+          busNumber: b.busNumber,
+          busId: id,
+          odometer: currentOdo,
+          previousOdometer: lastOdo,
+          distance: dist,
+          studentsPresent: studentsPresent,
+          teachersPresent: teachersPresent,
+          remarks: remarks || "",
+          timestamp: serverTimestamp(),
+        }
+      );
+      await updateDoc(
+        doc(db, "artifacts", appId, "public", "data", "buses", id),
+        { lastOdometer: currentOdo }
+      );
+      showNotif("ENTRY RECORDED SUCCESSFULLY!");
+      setView("dashboard");
+    };
+
+    if (currentOdo < lastOdo) {
+      safeAlert(
+        "Odometer Error",
+        `Current (${currentOdo}) cannot be less than Previous (${lastOdo}). Check your entry.`,
+        true
+      );
+      return;
+    }
+
+    let warningMsg = "";
+    if (dist > 100) warningMsg = `Distance driven is ${dist}km (Over 100km). `;
+    if (studentsAssigned > 0 && studentsPresent > studentsAssigned)
+      warningMsg += `Students entered (${studentsPresent}) exceed capacity. `;
+    if (teachersAssigned > 0 && teachersPresent > teachersAssigned)
+      warningMsg += `Teachers entered (${teachersPresent}) exceed capacity. `;
+
+    if (warningMsg) {
+      safeConfirm(
+        "Safety Warning",
+        warningMsg + " Do you want to proceed?",
+        executeSave,
+        true
+      );
+    } else {
+      executeSave();
+    }
+  };
+
+  return (
+    <div className="max-w-lg mx-auto">
+      <div className="flex items-center mb-6">
+        <button
+          onClick={() => setView("dashboard")}
+          className="mr-3 text-[#8D6E63]"
+        >
+          <ChevronRight className="rotate-180" />
+        </button>
+        <h2 className="text-xl font-bold text-[#F2E6D8]">Log Arrival</h2>
+      </div>
+      {!preSelectedBusId && (
+        <div className="mb-6 relative">
+          <select
+            className="w-full p-4 bg-[#2C1E16] border border-[#4A3426] text-[#F2E6D8] rounded-xl font-bold focus:ring-2 focus:ring-[#C19A6B] outline-none"
+            onChange={(e) => setId(e.target.value)}
+            value={id}
+          >
+            <option value="">-- Select Bus --</option>
+            {buses.map((x) => (
+              <option key={x.id} value={x.id}>
+                Bus {x.busNumber}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {id && b && (
+        <div className="space-y-4 animate-fade-in">
+          {preSelectedBusId && (
+            <div className="bg-[#C19A6B] p-3 rounded-lg text-[#1E140F] font-bold text-center mb-4">
+              LOGGING BUS {b.busNumber}
+            </div>
+          )}
+          <div className="bg-[#2C1E16] p-4 rounded-xl shadow-md border border-[#4A3426]">
+            <div className="flex justify-between items-end mb-2">
+              <label className="text-[10px] font-bold text-[#8D6E63] uppercase">
+                Odometer Reading
+              </label>
+              <div className="text-right">
+                <span className="text-[10px] text-[#8D6E63] uppercase block">
+                  Previous
+                </span>
+                <span className="text-2xl font-black text-[#C19A6B] block tracking-wide">
+                  {b.lastOdometer || 0}
+                </span>
+              </div>
+            </div>
+            <input
+              type="number"
+              style={{ ...STYLES.input, fontSize: "24px", fontWeight: "bold" }}
+              value={odo}
+              onChange={(e) => setOdo(e.target.value)}
+              placeholder="00000"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] font-bold text-[#8D6E63] uppercase mb-1 block">
+                Students (Max: {b.assignedStudents})
+              </label>
+              <input
+                type="number"
+                style={STYLES.input}
+                value={stu}
+                onChange={(e) => setStu(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-[#8D6E63] uppercase mb-1 block">
+                Teachers (Max: {b.assignedTeachers})
+              </label>
+              <input
+                type="number"
+                style={STYLES.input}
+                value={tch}
+                onChange={(e) => setTch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label style={STYLES.label}>Remarks (Optional)</label>
+            <textarea
+              className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none resize-none"
+              rows="2"
+              placeholder="Add notes here..."
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+            />
+          </div>
+
+          <button onClick={save} style={STYLES.btnPrimary}>
+            <Save className="mr-2 h-5 w-5" /> CONFIRM ENTRY
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- COMPONENT: DASHBOARD ---
+const Dashboard = ({ buses, entries, onLog, onViewEntry, onViewProfile }) => {
+  const today = new Date().toDateString();
+  const tE = entries.filter(
+    (e) =>
+      e.timestamp &&
+      new Date(e.timestamp.seconds * 1000).toDateString() === today
+  );
+  const pendingBuses = buses.filter((b) => !tE.find((e) => e.busId === b.id));
+  const scrollToArrived = () => {
+    const el = document.getElementById("arrived-section");
+    if (el) el.scrollIntoView({ behavior: "smooth" });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div
+        onClick={scrollToArrived}
+        className="bg-[#2C1E16] p-4 rounded-xl border border-[#4A3426] shadow-lg cursor-pointer hover:border-[#C19A6B] transition-colors group"
+      >
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-[#C19A6B] text-xs font-bold uppercase flex items-center">
+            <Clock className="w-3 h-3 mr-2" /> Today's Overview
+          </h3>
+          <span className="text-[9px] text-[#8D6E63] uppercase group-hover:text-[#F2E6D8] transition-colors">
+            Click to View List &darr;
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-[#1E140F] p-3 rounded-lg text-center border border-[#4A3426]">
+            <span className="block text-2xl font-bold text-[#F2E6D8]">
+              {tE.length}{" "}
+              <span className="text-sm text-[#5D4037]">/ {buses.length}</span>
+            </span>
+            <span className="text-[9px] text-[#8D6E63] uppercase font-bold">
+              Buses Arrived
+            </span>
+          </div>
+          <div className="bg-[#1E140F] p-3 rounded-lg text-center border border-[#4A3426]">
+            <span className="block text-2xl font-bold text-[#F2E6D8]">
+              {tE.reduce((a, c) => a + (c.studentsPresent || 0), 0)}
+            </span>
+            <span className="text-[9px] text-[#8D6E63] uppercase font-bold">
+              Students
+            </span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 className="text-[#8D6E63] text-xs font-bold uppercase mb-2 ml-1">
+          Pending Arrivals ({pendingBuses.length})
+        </h3>
+        <div className="space-y-2">
+          {pendingBuses.length === 0 ? (
+            <div className="p-3 bg-[#1B2E1E] text-[#A5D6A7] rounded-lg border border-[#2E4C33] text-xs font-bold flex items-center justify-center">
+              <CheckCircle className="h-4 w-4 mr-2" /> Alhamdullah! All buses
+              have arrived!
+            </div>
+          ) : (
+            pendingBuses.map((b) => (
+              <div
+                key={b.id}
+                className="bg-[#2C1E16] p-3 rounded-lg border border-[#4A3426] flex justify-between items-center shadow-sm"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="bg-[#1E140F] text-[#C19A6B] font-bold text-xs p-2 rounded w-10 text-center border border-[#4A3426]">
+                    {b.busNumber}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-[#F2E6D8]">
+                      {b.regNumber}
+                    </div>
+                    <div className="text-[10px] text-[#8D6E63]">
+                      {b.driverName || "No Driver"}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => onViewProfile(b.id)}
+                    style={STYLES.btnSecondary}
+                  >
+                    View
+                  </button>
+                  <button onClick={() => onLog(b.id)} style={STYLES.btnSmall}>
+                    Log
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {tE.length > 0 && (
+        <div id="arrived-section">
+          <h3 className="text-[#8D6E63] text-xs font-bold uppercase mb-2 ml-1 mt-6">
+            Arrived Today (Click to View)
+          </h3>
+          <div className="space-y-3">
+            {tE.map((e) => {
+              const b = buses.find((x) => x.id === e.busId) || {};
+              const sAbs = (b.assignedStudents || 0) - e.studentsPresent;
+              const tAbs = (b.assignedTeachers || 0) - e.teachersPresent;
+              return (
+                <div
+                  key={e.id}
+                  onClick={() => onViewEntry(e)}
+                  className="bg-[#1E140F] p-4 rounded-xl border-l-4 border-[#C19A6B] cursor-pointer hover:bg-[#251610] transition-colors shadow-lg"
+                >
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="font-bold text-lg text-[#F2E6D8]">
+                      Bus {e.busNumber}
+                    </span>
+                    <span className="text-xs text-[#8D6E63] bg-[#2C1E16] px-2 py-1 rounded border border-[#4A3426]">
+                      CLICK TO VIEW
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="text-[#F2E6D8] font-bold">
+                      ⏰{" "}
+                      {new Date(e.timestamp?.seconds * 1000).toLocaleTimeString(
+                        [],
+                        { hour: "2-digit", minute: "2-digit" }
+                      )}
+                    </div>
+                    <div className="text-[#F2E6D8] font-bold">
+                      🚗 {e.distance} km
+                    </div>
+                    <div className="text-[#A5D6A7] font-bold">
+                      👨‍🎓 P: {e.studentsPresent} /{" "}
+                      <span className="text-[#EF9A9A]">A: {sAbs}</span>
+                    </div>
+                    <div className="text-[#FFB74D] font-bold">
+                      👨‍🏫 P: {e.teachersPresent} /{" "}
+                      <span className="text-[#EF9A9A]">A: {tAbs}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- FUEL MANAGER ---
+const FuelManager = ({ buses, fuelLogs, setView, showNotif, safeAlert }) => {
   const [mode, setMode] = useState("log");
   const [rates, setRates] = useState({ diesel: 90, adblue: 50 });
   const [f, setF] = useState({
@@ -805,7 +1433,7 @@ const FuelManager = ({ buses, fuelLogs, setView, showNotif }) => {
   const saveFuel = async () => {
     if (!f.busId || !f.quantity || !f.odo) return;
     if (parseFloat(f.odo) < lastRefuelOdo) {
-      alert("Odometer cannot be less than previous refuel!");
+      safeAlert("Error", "Odometer cannot be less than previous refuel!", true);
       return;
     }
     const dist = parseFloat(f.odo) - lastRefuelOdo;
@@ -1046,287 +1674,12 @@ const FuelManager = ({ buses, fuelLogs, setView, showNotif }) => {
   );
 };
 
-// --- DASHBOARD (Updated) ---
-const Dashboard = ({ buses, entries, onLog, onViewEntry, onViewProfile }) => {
-  const today = new Date().toDateString();
-  const tE = entries.filter(
-    (e) =>
-      e.timestamp &&
-      new Date(e.timestamp.seconds * 1000).toDateString() === today
-  );
-  const pendingBuses = buses.filter((b) => !tE.find((e) => e.busId === b.id));
-
-  const scrollToArrived = () => {
-    const el = document.getElementById("arrived-section");
-    if (el) el.scrollIntoView({ behavior: "smooth" });
-  };
-
-  return (
-    <div className="space-y-6">
-      <div
-        onClick={scrollToArrived}
-        className="bg-[#2C1E16] p-4 rounded-xl border border-[#4A3426] shadow-lg cursor-pointer hover:border-[#C19A6B] transition-colors group"
-      >
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-[#C19A6B] text-xs font-bold uppercase flex items-center">
-            <Clock className="w-3 h-3 mr-2" /> Today's Overview
-          </h3>
-          <span className="text-[9px] text-[#8D6E63] uppercase group-hover:text-[#F2E6D8] transition-colors">
-            Click to View List &darr;
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[#1E140F] p-3 rounded-lg text-center border border-[#4A3426]">
-            <span className="block text-2xl font-bold text-[#F2E6D8]">
-              {tE.length}{" "}
-              <span className="text-sm text-[#5D4037]">/ {buses.length}</span>
-            </span>
-            <span className="text-[9px] text-[#8D6E63] uppercase font-bold">
-              Buses Arrived
-            </span>
-          </div>
-          <div className="bg-[#1E140F] p-3 rounded-lg text-center border border-[#4A3426]">
-            <span className="block text-2xl font-bold text-[#F2E6D8]">
-              {tE.reduce((a, c) => a + (c.studentsPresent || 0), 0)}
-            </span>
-            <span className="text-[9px] text-[#8D6E63] uppercase font-bold">
-              Students
-            </span>
-          </div>
-        </div>
-      </div>
-      <div>
-        <h3 className="text-[#8D6E63] text-xs font-bold uppercase mb-2 ml-1">
-          Pending Arrivals ({pendingBuses.length})
-        </h3>
-        <div className="space-y-2">
-          {pendingBuses.length === 0 ? (
-            <div className="p-3 bg-[#1B2E1E] text-[#A5D6A7] rounded-lg border border-[#2E4C33] text-xs font-bold flex items-center justify-center">
-              <CheckCircle className="h-4 w-4 mr-2" /> Alhamdullah! All buses
-              have arrived!
-            </div>
-          ) : (
-            pendingBuses.map((b) => (
-              <div
-                key={b.id}
-                className="bg-[#2C1E16] p-3 rounded-lg border border-[#4A3426] flex justify-between items-center shadow-sm"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="bg-[#1E140F] text-[#C19A6B] font-bold text-xs p-2 rounded w-10 text-center border border-[#4A3426]">
-                    {b.busNumber}
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-[#F2E6D8]">
-                      {b.regNumber}
-                    </div>
-                    <div className="text-[10px] text-[#8D6E63]">
-                      {b.driverName || "No Driver"}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => onViewProfile(b.id)}
-                    style={STYLES.btnSecondary}
-                  >
-                    View
-                  </button>
-                  <button onClick={() => onLog(b.id)} style={STYLES.btnSmall}>
-                    Log
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {tE.length > 0 && (
-        <div id="arrived-section">
-          <h3 className="text-[#8D6E63] text-xs font-bold uppercase mb-2 ml-1 mt-6">
-            Arrived Today (Click to View)
-          </h3>
-          <div className="space-y-2">
-            {tE.map((e) => (
-              <div
-                key={e.id}
-                onClick={() => onViewEntry(e)}
-                className="bg-[#1E140F] p-3 rounded-lg border-l-4 border-[#C19A6B] flex justify-between items-center cursor-pointer hover:bg-[#251610] transition-colors"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="font-bold text-[#F2E6D8] text-sm">
-                    Bus {e.busNumber}
-                  </div>
-                  <div className="text-[10px] text-[#8D6E63] border-l border-[#4A3426] pl-2">
-                    {new Date(e.timestamp?.seconds * 1000).toLocaleTimeString(
-                      [],
-                      { hour: "2-digit", minute: "2-digit" }
-                    )}
-                  </div>
-                </div>
-                <div className="text-[10px] text-[#C19A6B] font-bold">
-                  {e.studentsPresent} Students • {e.distance} km
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// --- ENTRY FORM ---
-const EntryForm = ({ buses, setView, preSelectedBusId, showNotif }) => {
-  const [id, setId] = useState(preSelectedBusId || "");
-  const [odo, setOdo] = useState("");
-  const [stu, setStu] = useState("");
-  const [tch, setTch] = useState("");
-  const b = buses.find((x) => x.id === id);
-
-  useEffect(() => {
-    if (preSelectedBusId) setId(preSelectedBusId);
-  }, [preSelectedBusId]);
-
-  const save = async () => {
-    if (!id || !odo) return;
-    const lastOdo = b.lastOdometer || 0;
-    const currentOdo = parseFloat(odo);
-    const dist = currentOdo - lastOdo;
-    const studentsPresent = parseInt(stu) || 0;
-    const studentsAssigned = b.assignedStudents || 0;
-
-    if (currentOdo < lastOdo) {
-      alert(
-        `ERROR: Current Odometer (${currentOdo}) cannot be less than previous (${lastOdo})!`
-      );
-      return;
-    }
-
-    // NEW CHECK: Student Capacity
-    if (studentsAssigned > 0 && studentsPresent > studentsAssigned) {
-      if (
-        !window.confirm(
-          `WARNING: Entered students (${studentsPresent}) exceeds capacity (${studentsAssigned}). Proceed?`
-        )
-      )
-        return;
-    }
-
-    await addDoc(
-      collection(db, "artifacts", appId, "public", "data", "entries"),
-      {
-        busNumber: b.busNumber,
-        busId: id,
-        odometer: currentOdo,
-        previousOdometer: lastOdo,
-        distance: dist,
-        studentsPresent: studentsPresent,
-        teachersPresent: parseInt(tch) || 0,
-        timestamp: serverTimestamp(),
-      }
-    );
-    await updateDoc(
-      doc(db, "artifacts", appId, "public", "data", "buses", id),
-      { lastOdometer: currentOdo }
-    );
-    showNotif("ENTRY RECORDED SUCCESSFULLY!");
-    setView("dashboard");
-  };
-
-  return (
-    <div className="max-w-lg mx-auto">
-      <div className="flex items-center mb-6">
-        <button
-          onClick={() => setView("dashboard")}
-          className="mr-3 text-[#8D6E63]"
-        >
-          <ChevronRight className="rotate-180" />
-        </button>
-        <h2 className="text-xl font-bold text-[#F2E6D8]">Log Arrival</h2>
-      </div>
-      {!preSelectedBusId && (
-        <div className="mb-6 relative">
-          <select
-            className="w-full p-4 bg-[#2C1E16] border border-[#4A3426] text-[#F2E6D8] rounded-xl font-bold focus:ring-2 focus:ring-[#C19A6B] outline-none"
-            onChange={(e) => setId(e.target.value)}
-            value={id}
-          >
-            <option value="">-- Select Bus --</option>
-            {buses.map((x) => (
-              <option key={x.id} value={x.id}>
-                Bus {x.busNumber}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-      {id && b && (
-        <div className="space-y-4 animate-fade-in">
-          {preSelectedBusId && (
-            <div className="bg-[#C19A6B] p-3 rounded-lg text-[#1E140F] font-bold text-center mb-4">
-              LOGGING BUS {b.busNumber}
-            </div>
-          )}
-          <div className="bg-[#2C1E16] p-4 rounded-xl shadow-md border border-[#4A3426]">
-            <div className="flex justify-between items-end mb-2">
-              <label className="text-[10px] font-bold text-[#8D6E63] uppercase">
-                Odometer Reading
-              </label>
-              <div className="text-right">
-                <span className="text-[10px] text-[#8D6E63] uppercase block">
-                  Previous
-                </span>
-                <span className="text-2xl font-black text-[#C19A6B] block tracking-wide">
-                  {b.lastOdometer || 0}
-                </span>
-              </div>
-            </div>
-            <input
-              type="number"
-              style={{ ...STYLES.input, fontSize: "24px", fontWeight: "bold" }}
-              value={odo}
-              onChange={(e) => setOdo(e.target.value)}
-              placeholder="00000"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-[10px] font-bold text-[#8D6E63] uppercase mb-1 block">
-                Students (Max: {b.assignedStudents})
-              </label>
-              <input
-                type="number"
-                style={STYLES.input}
-                value={stu}
-                onChange={(e) => setStu(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-[#8D6E63] uppercase mb-1 block">
-                Teachers (Max: {b.assignedTeachers})
-              </label>
-              <input
-                type="number"
-                style={STYLES.input}
-                value={tch}
-                onChange={(e) => setTch(e.target.value)}
-              />
-            </div>
-          </div>
-          <button onClick={save} style={STYLES.btnPrimary}>
-            <Save className="mr-2 h-5 w-5" /> CONFIRM ENTRY
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
-
+// --- COMPONENT: EDIT LOG FORM (With Remarks) ---
 const EditLogForm = ({ entry, setView, buses, showNotif }) => {
   const [odo, setOdo] = useState(entry?.odometer || "");
   const [stu, setStu] = useState(entry?.studentsPresent || "");
   const [tch, setTch] = useState(entry?.teachersPresent || "");
+  const [remarks, setRemarks] = useState(entry?.remarks || "");
   const b = buses.find((x) => x.busNumber === entry?.busNumber);
 
   const saveUpdate = async () => {
@@ -1339,6 +1692,7 @@ const EditLogForm = ({ entry, setView, buses, showNotif }) => {
         distance: newDist,
         studentsPresent: parseInt(stu),
         teachersPresent: parseInt(tch),
+        remarks: remarks, // SAVE EDITED REMARKS
       }
     );
     if (b) {
@@ -1403,6 +1757,15 @@ const EditLogForm = ({ entry, setView, buses, showNotif }) => {
               onChange={(e) => setTch(e.target.value)}
             />
           </div>
+        </div>
+
+        <div className="mt-3">
+          <label style={STYLES.label}>Remarks</label>
+          <textarea
+            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+          />
         </div>
       </div>
       <button onClick={saveUpdate} style={STYLES.btnPrimary}>
@@ -1490,8 +1853,15 @@ const DocsView = ({ buses }) => {
   );
 };
 
-// --- COMPONENT: ADMIN PANEL (Added Labels) ---
-const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
+const AdminPanel = ({
+  buses,
+  entries,
+  fuelLogs,
+  showNotif,
+  onEdit,
+  safeConfirm,
+  safeAlert,
+}) => {
   const [f, setF] = useState({});
   const fRef = useRef(null);
   const rRef = useRef(null);
@@ -1511,37 +1881,30 @@ const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
       }
     );
     setF({});
-    showNotif("BUS ADDED SUCCESSFULLY!");
+    showNotif("Mashallah! Bus Added Successfully!");
   };
 
   const handleClearAllData = async () => {
-    if (
-      !window.confirm(
-        "CRITICAL WARNING: This will permanently DELETE ALL buses, logs, and fuel data. Are you sure?"
-      )
-    )
-      return;
-    if (
-      !window.confirm(
-        "Last Chance: Type 'YES' to confirm deletion (In your mind) and click OK."
-      )
-    )
-      return;
-
-    const deleteCollection = async (coll) => {
-      const q = query(
-        collection(db, "artifacts", appId, "public", "data", coll)
-      );
-      const s = await getDocs(q);
-      const batch = writeBatch(db);
-      s.docs.forEach((d) => batch.delete(d.ref));
-      await batch.commit();
-    };
-
-    await deleteCollection("buses");
-    await deleteCollection("entries");
-    await deleteCollection("fuel_logs");
-    showNotif("SYSTEM RESET COMPLETE.");
+    safeConfirm(
+      "System Reset",
+      "CRITICAL: Deleting ALL data. This cannot be undone.",
+      async () => {
+        const deleteCollection = async (coll) => {
+          const q = query(
+            collection(db, "artifacts", appId, "public", "data", coll)
+          );
+          const s = await getDocs(q);
+          const batch = writeBatch(db);
+          s.docs.forEach((d) => batch.delete(d.ref));
+          await batch.commit();
+        };
+        await deleteCollection("buses");
+        await deleteCollection("entries");
+        await deleteCollection("fuel_logs");
+        showNotif("SYSTEM RESET COMPLETE.");
+      },
+      true
+    );
   };
 
   const handleBackup = () =>
@@ -1601,7 +1964,7 @@ const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
         await batch.commit();
         showNotif("RESTORED SUCCESSFULLY!");
       } catch (err) {
-        alert("Restore Failed: " + err.message);
+        safeAlert("Error", "Restore Failed: " + err.message, true);
       }
     };
     reader.readAsText(e.target.files[0]);
@@ -1617,20 +1980,26 @@ const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
         const c = row.split(",");
         if (c.length > 2) {
           const busData = {
-            busNumber: c[0]?.trim(),
-            regNumber: c[1]?.trim(),
-            lastOdometer: parseFloat(c[2]) || 0,
-            assignedStudents: parseInt(c[3]) || 0,
-            assignedTeachers: parseInt(c[4]) || 0,
-            driverName: c[5]?.trim(),
-            driverContact: c[6]?.trim(),
-            insuranceExpiry: c[7]?.trim(),
-            permitExpiry: c[8]?.trim(),
-            taxExpiry: c[9]?.trim(),
-            fitnessExpiry: c[10]?.trim(),
-            tankCapacity: parseFloat(c[11]) || 0,
-            estMileage: parseFloat(c[12]) || 0,
-            lastRefuelOdometer: parseFloat(c[2]) || 0,
+            busNumber: c[2]?.trim(), // Mapped to match Export columns
+            regNumber: c[3]?.trim(),
+            driverName: c[4]?.trim(),
+            driverContact: c[5]?.trim(),
+            attendantName: c[6]?.trim(),
+            attendantContact: c[7]?.trim(),
+            lastOdometer: parseFloat(c[8]) || 0,
+            tankCapacity: parseFloat(c[12]) || 0,
+            estMileage: parseFloat(c[13]) || 0,
+            insuranceExpiry: c[14]?.trim(),
+            permitExpiry: c[15]?.trim(),
+            fitnessExpiry: c[16]?.trim(),
+            taxExpiry: c[17]?.trim(),
+            pollutionExpiry: c[18]?.trim(),
+            gpsExpiry: c[19]?.trim(),
+            cameraExpiry: c[20]?.trim(),
+            extinguisherExpiry: c[21]?.trim(),
+            firstAidExpiry: c[22]?.trim(),
+            assignedStudents: parseInt(c[10]) || 0,
+            assignedTeachers: parseInt(c[11]) || 0,
           };
           if (busData.busNumber) {
             batch.set(
@@ -1662,84 +2031,106 @@ const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
           <PlusCircle className="mr-2 h-4 w-4" /> Add Bus Profile
         </h3>
         <div className="grid grid-cols-2 gap-3 mb-3">
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Bus No (51)"
-            value={f.busNumber || ""}
-            onChange={(e) => setF({ ...f, busNumber: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Reg No"
-            value={f.regNumber || ""}
-            onChange={(e) => setF({ ...f, regNumber: e.target.value })}
-          />
+          <div>
+            <label style={STYLES.label}>BUS NO</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.busNumber || ""}
+              onChange={(e) => setF({ ...f, busNumber: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>REG NO</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.regNumber || ""}
+              onChange={(e) => setF({ ...f, regNumber: e.target.value })}
+            />
+          </div>
         </div>
 
         {/* EXPANDED FIELDS */}
         <div className="grid grid-cols-2 gap-3 mt-3">
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Driver Name"
-            value={f.driverName || ""}
-            onChange={(e) => setF({ ...f, driverName: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Driver Contact"
-            value={f.driverContact || ""}
-            onChange={(e) => setF({ ...f, driverContact: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Attendant Name"
-            value={f.attendantName || ""}
-            onChange={(e) => setF({ ...f, attendantName: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Attendant Contact"
-            value={f.attendantContact || ""}
-            onChange={(e) => setF({ ...f, attendantContact: e.target.value })}
-          />
+          <div>
+            <label style={STYLES.label}>DRIVER</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.driverName || ""}
+              onChange={(e) => setF({ ...f, driverName: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>PHONE</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.driverContact || ""}
+              onChange={(e) => setF({ ...f, driverContact: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>ATTENDANT</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.attendantName || ""}
+              onChange={(e) => setF({ ...f, attendantName: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>PHONE</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.attendantContact || ""}
+              onChange={(e) => setF({ ...f, attendantContact: e.target.value })}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 mt-3">
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Initial Odo"
-            type="number"
-            value={f.lastOdometer || ""}
-            onChange={(e) => setF({ ...f, lastOdometer: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Tank Cap (L)"
-            type="number"
-            value={f.tankCapacity || ""}
-            onChange={(e) => setF({ ...f, tankCapacity: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Est. Mileage"
-            type="number"
-            value={f.estMileage || ""}
-            onChange={(e) => setF({ ...f, estMileage: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Students Assigned"
-            type="number"
-            value={f.assignedStudents || ""}
-            onChange={(e) => setF({ ...f, assignedStudents: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Teachers Assigned"
-            type="number"
-            value={f.assignedTeachers || ""}
-            onChange={(e) => setF({ ...f, assignedTeachers: e.target.value })}
-          />
+          <div>
+            <label style={STYLES.label}>INITIAL ODO</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.lastOdometer || ""}
+              onChange={(e) => setF({ ...f, lastOdometer: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>TANK (L)</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.tankCapacity || ""}
+              onChange={(e) => setF({ ...f, tankCapacity: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>MILEAGE</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.estMileage || ""}
+              onChange={(e) => setF({ ...f, estMileage: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>STU CAP</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.assignedStudents || ""}
+              onChange={(e) => setF({ ...f, assignedStudents: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>TCH CAP</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.assignedTeachers || ""}
+              onChange={(e) => setF({ ...f, assignedTeachers: e.target.value })}
+            />
+          </div>
         </div>
 
         <h4 className="text-xs text-[#8D6E63] uppercase font-bold mt-4 mb-2">
@@ -1756,7 +2147,7 @@ const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
             />
           </div>
           <div>
-            <label style={STYLES.label}>ROUTE PERMIT</label>
+            <label style={STYLES.label}>PERMIT</label>
             <input
               className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
               type="date"
@@ -1765,7 +2156,7 @@ const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
             />
           </div>
           <div>
-            <label style={STYLES.label}>TOKEN TAX</label>
+            <label style={STYLES.label}>TAX</label>
             <input
               className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
               type="date"
@@ -1774,7 +2165,7 @@ const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
             />
           </div>
           <div>
-            <label style={STYLES.label}>POLLUTION (PUC)</label>
+            <label style={STYLES.label}>POLLUTION</label>
             <input
               className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
               type="date"
@@ -1783,7 +2174,7 @@ const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
             />
           </div>
           <div>
-            <label style={STYLES.label}>GPS CERT</label>
+            <label style={STYLES.label}>GPS</label>
             <input
               className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
               type="date"
@@ -1792,7 +2183,7 @@ const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
             />
           </div>
           <div>
-            <label style={STYLES.label}>FIRE EXT.</label>
+            <label style={STYLES.label}>FIRE EXT</label>
             <input
               className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
               type="date"
@@ -1812,7 +2203,7 @@ const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
             />
           </div>
           <div>
-            <label style={STYLES.label}>CAMERA APP</label>
+            <label style={STYLES.label}>CAMERA</label>
             <input
               className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
               type="date"
@@ -1827,6 +2218,45 @@ const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
         </button>
       </div>
 
+      {/* 2. Active Fleet List (Streamlined) */}
+      <div style={STYLES.card}>
+        <h3 className="text-[#8D6E63] text-xs font-bold uppercase mb-3">
+          Active Fleet (Tap Edit to Modify)
+        </h3>
+        <div className="space-y-2">
+          {buses.map((b) => (
+            <div
+              key={b.id}
+              className="grid grid-cols-3 items-center p-3 border-b border-[#4A3426] last:border-0 hover:bg-[#1E140F]"
+            >
+              <div className="col-span-1">
+                <span className="font-bold text-[#F2E6D8] text-lg">
+                  Bus {b.busNumber}
+                </span>
+              </div>
+              <div className="col-span-1 text-center">
+                <span className="text-xs text-[#8D6E63]">{b.regNumber}</span>
+              </div>
+              <div className="col-span-1 flex justify-end">
+                <button
+                  onClick={() => {
+                    safeConfirm(
+                      "Edit Profile",
+                      `Edit profile for Bus ${b.busNumber}?`,
+                      () => onEdit(b.id)
+                    );
+                  }}
+                  style={STYLES.btnEdit}
+                >
+                  <Edit className="h-3 w-3 mr-1" /> EDIT
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. Data Center (At Bottom) */}
       <div className="bg-[#2C1E16] p-5 rounded-xl border border-[#4A3426] shadow-lg">
         <h3 className="font-bold mb-4 text-[#C19A6B] flex items-center">
           <Database className="mr-2 h-4 w-4" /> Data Center

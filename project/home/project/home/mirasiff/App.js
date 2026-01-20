@@ -26,6 +26,7 @@ import {
   PlusCircle,
   Shield,
   Edit3,
+  Edit,
 } from "lucide-react";
 import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
@@ -316,11 +317,15 @@ export default function App() {
     setViewBusId(busId);
     setView("bus_profile");
   };
+  const handleEditProfile = (busId) => {
+    setViewBusId(busId);
+    setView("edit_bus_profile");
+  };
 
   if (loading)
     return (
       <div className="flex h-screen items-center justify-center bg-[#1E140F] text-[#C19A6B] animate-pulse font-bold tracking-widest">
-        Bismillah! Ingenious School LOADING...
+        INGENIOUS LOADING...
       </div>
     );
 
@@ -331,7 +336,7 @@ export default function App() {
           <Bus color={COLORS.accent} size={24} />
           <div>
             <h1 style={{ margin: 0, fontSize: "18px", fontWeight: "bold" }}>
-              INGENIOUS SCHOOL
+              Ingenious
             </h1>
             <p
               style={{
@@ -341,7 +346,7 @@ export default function App() {
                 letterSpacing: "1px",
               }}
             >
-              TRANSPORT MANAGEMENT APP (Devlpd. by Murtaza Asif)
+              SCHOOL TRANSPORT MGMT
             </p>
           </div>
         </div>
@@ -395,6 +400,7 @@ export default function App() {
             entry={selectedEntry}
             setView={setView}
             handleEditEntry={handleEditEntry}
+            buses={buses}
           />
         )}
         {view === "edit_log" && (
@@ -418,7 +424,20 @@ export default function App() {
           />
         )}
         {view === "bus_profile" && (
-          <BusProfileView busId={viewBusId} buses={buses} setView={setView} />
+          <BusProfileView
+            busId={viewBusId}
+            buses={buses}
+            setView={setView}
+            onEdit={handleEditProfile}
+          />
+        )}
+        {view === "edit_bus_profile" && (
+          <EditBusProfileForm
+            busId={viewBusId}
+            buses={buses}
+            setView={setView}
+            showNotif={showNotif}
+          />
         )}
       </main>
 
@@ -436,7 +455,7 @@ export default function App() {
           borderTop: `1px solid ${COLORS.card}`,
         }}
       >
-        Created by Mir Murtaza Asif
+        Created by Mir Murtaza Asif Bashir
       </div>
 
       <nav style={STYLES.nav}>
@@ -490,8 +509,14 @@ const NavBtn = ({ icon: Icon, label, active, onClick }) => (
 );
 
 // --- COMPONENT: ENTRY DETAILS VIEW (Read-Only) ---
-const ViewLogDetails = ({ entry, setView, handleEditEntry }) => {
+const ViewLogDetails = ({ entry, setView, handleEditEntry, buses }) => {
   if (!entry) return null;
+  const b = buses.find((x) => x.busNumber === entry.busNumber);
+  const studentsAssigned = b?.assignedStudents || 0;
+  const teachersAssigned = b?.assignedTeachers || 0;
+  const stuAbsent = studentsAssigned - entry.studentsPresent;
+  const tchAbsent = teachersAssigned - entry.teachersPresent;
+
   return (
     <div className="animate-fade-in space-y-4">
       <div className="flex items-center mb-6">
@@ -523,11 +548,15 @@ const ViewLogDetails = ({ entry, setView, handleEditEntry }) => {
           </div>
           <div>
             <p className="text-[#8D6E63] text-xs uppercase">Students</p>
-            <p className="font-bold">{entry.studentsPresent}</p>
+            <p className="font-bold">
+              {entry.studentsPresent} (Abs: {stuAbsent})
+            </p>
           </div>
           <div>
             <p className="text-[#8D6E63] text-xs uppercase">Teachers</p>
-            <p className="font-bold">{entry.teachersPresent}</p>
+            <p className="font-bold">
+              {entry.teachersPresent} (Abs: {tchAbsent})
+            </p>
           </div>
         </div>
         <button
@@ -541,8 +570,8 @@ const ViewLogDetails = ({ entry, setView, handleEditEntry }) => {
   );
 };
 
-// --- COMPONENT: BUS PROFILE VIEW (Fixed Definition) ---
-const BusProfileView = ({ busId, buses, setView }) => {
+// --- COMPONENT: BUS PROFILE VIEW ---
+const BusProfileView = ({ busId, buses, setView, onEdit }) => {
   const b = buses.find((x) => x.id === busId);
   if (!b) return null;
 
@@ -621,7 +650,7 @@ const BusProfileView = ({ busId, buses, setView }) => {
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label style={STYLES.label}>Assigned</label>
+            <label style={STYLES.label}>Capacity</label>
             <div className="text-[#F2E6D8] text-xs">
               {b.assignedStudents} Students
             </div>
@@ -643,7 +672,7 @@ const BusProfileView = ({ busId, buses, setView }) => {
         <h4 className="text-[#C19A6B] text-xs font-bold uppercase mb-2 border-b border-[#4A3426] pb-1">
           Compliance Status
         </h4>
-        <div className="grid grid-cols-2 gap-3 text-xs">
+        <div className="grid grid-cols-2 gap-3 text-xs mb-4">
           {docFields.map((f) => {
             const s = check(b[f.k]);
             return (
@@ -662,115 +691,501 @@ const BusProfileView = ({ busId, buses, setView }) => {
             );
           })}
         </div>
+
+        <button onClick={() => onEdit(b.id)} style={STYLES.btnPrimary}>
+          <Edit className="mr-2 h-4 w-4" /> EDIT PROFILE
+        </button>
       </div>
     </div>
   );
 };
 
-// --- COMPONENT: REPORTS VIEW ---
-const ReportsView = ({ entries, buses, fuelLogs }) => {
-  const [startDate, setStartDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
-  const [endDate, setEndDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+// --- COMPONENT: EDIT BUS PROFILE FORM ---
+const EditBusProfileForm = ({ busId, buses, setView, showNotif }) => {
+  const b = buses.find((x) => x.id === busId);
+  const [f, setF] = useState(b || {});
 
-  const generateReport = () => {
-    const start = new Date(startDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
-    const filteredEntries = entries.filter((e) => {
-      const d = new Date(e.timestamp?.seconds * 1000);
-      return d >= start && d <= end;
-    });
-
-    if (filteredEntries.length === 0) {
-      alert("No data found for selected range.");
-      return;
-    }
-
-    const reportData = filteredEntries.map((e) => {
-      const b = buses.find((x) => x.busNumber === e.busNumber) || {};
-      return {
-        Date: new Date(e.timestamp?.seconds * 1000).toLocaleDateString(),
-        Time: new Date(e.timestamp?.seconds * 1000).toLocaleTimeString(),
-        BusNumber: e.busNumber,
-        RegNumber: b.regNumber || "",
-        DriverName: b.driverName || "",
-        DriverContact: b.driverContact || "",
-        Attendant: b.attendantName || "",
-        Odometer: e.odometer,
-        Distance: e.distance,
-        StudentsPresent: e.studentsPresent,
-        TeachersPresent: e.teachersPresent,
-        InsuranceExpiry: b.insuranceExpiry || "",
-        PermitExpiry: b.permitExpiry || "",
-        FitnessExpiry: b.fitnessExpiry || "",
-      };
-    });
-    downloadCSV(reportData, `Master_Report_${startDate}_to_${endDate}.csv`);
+  const save = async () => {
+    await updateDoc(
+      doc(db, "artifacts", appId, "public", "data", "buses", busId),
+      f
+    );
+    showNotif("BUS PROFILE UPDATED!");
+    setView("bus_profile");
   };
 
+  if (!b) return null;
+
   return (
-    <div className="space-y-4 p-2">
-      <h2 className="text-xl font-bold text-[#F2E6D8] mb-4 flex items-center">
-        <ClipboardList className="mr-2 text-[#C19A6B]" /> Reports Center
-      </h2>
+    <div className="space-y-6 p-2">
+      <div className="flex items-center mb-4">
+        <button
+          onClick={() => setView("bus_profile")}
+          className="mr-3 text-[#8D6E63]"
+        >
+          <ChevronRight className="rotate-180" />
+        </button>
+        <h2 className="text-xl font-bold text-[#F2E6D8]">
+          Edit Bus {b.busNumber}
+        </h2>
+      </div>
       <div style={STYLES.card}>
-        <h3 className="text-[#8D6E63] text-xs font-bold uppercase mb-3">
-          Export Data Range
-        </h3>
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
-            <label style={STYLES.label}>From Date</label>
+            <label style={STYLES.label}>BUS NO</label>
             <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full bg-[#120B09] text-[#F2E6D8] border border-[#4A3426] rounded p-2 text-xs outline-none"
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.busNumber}
+              onChange={(e) => setF({ ...f, busNumber: e.target.value })}
             />
           </div>
           <div>
-            <label style={STYLES.label}>To Date</label>
+            <label style={STYLES.label}>REG NO</label>
             <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full bg-[#120B09] text-[#F2E6D8] border border-[#4A3426] rounded p-2 text-xs outline-none"
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.regNumber}
+              onChange={(e) => setF({ ...f, regNumber: e.target.value })}
             />
           </div>
         </div>
-        <button onClick={generateReport} style={STYLES.btnPrimary}>
-          <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel (CSV)
-        </button>
-      </div>
-      <h3 className="text-[#C19A6B] text-xs font-bold uppercase mt-6 mb-2">
-        Recent Activity
-      </h3>
-      <div className="space-y-2">
-        {entries.slice(0, 5).map((e) => (
-          <div
-            key={e.id}
-            className="bg-[#2C1E16] p-3 rounded-lg border-l-4 border-[#C19A6B] flex justify-between items-center"
-          >
-            <div>
-              <span className="font-bold text-sm text-[#F2E6D8]">
-                Bus {e.busNumber}
-              </span>
-            </div>
-            <div className="text-[10px] text-[#8D6E63]">
-              {new Date(e.timestamp?.seconds * 1000).toLocaleDateString()}
-            </div>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label style={STYLES.label}>DRIVER</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.driverName}
+              onChange={(e) => setF({ ...f, driverName: e.target.value })}
+            />
           </div>
-        ))}
+          <div>
+            <label style={STYLES.label}>PHONE</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.driverContact}
+              onChange={(e) => setF({ ...f, driverContact: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label style={STYLES.label}>ATTENDANT</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.attendantName}
+              onChange={(e) => setF({ ...f, attendantName: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>PHONE</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.attendantContact}
+              onChange={(e) => setF({ ...f, attendantContact: e.target.value })}
+            />
+          </div>
+        </div>
+
+        <h4 className="text-xs text-[#C19A6B] font-bold uppercase mt-4 mb-2">
+          Capacities & Specs
+        </h4>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label style={STYLES.label}>STU CAP</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.assignedStudents}
+              onChange={(e) => setF({ ...f, assignedStudents: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>TCH CAP</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.assignedTeachers}
+              onChange={(e) => setF({ ...f, assignedTeachers: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>TANK (L)</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.tankCapacity}
+              onChange={(e) => setF({ ...f, tankCapacity: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>MILEAGE</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.estMileage}
+              onChange={(e) => setF({ ...f, estMileage: e.target.value })}
+            />
+          </div>
+        </div>
+
+        <h4 className="text-xs text-[#C19A6B] font-bold uppercase mt-4 mb-2">
+          Document Dates
+        </h4>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            "insuranceExpiry",
+            "permitExpiry",
+            "taxExpiry",
+            "fitnessExpiry",
+            "pollutionExpiry",
+            "gpsExpiry",
+            "cameraExpiry",
+            "extinguisherExpiry",
+            "firstAidExpiry",
+          ].map((k) => (
+            <div key={k}>
+              <label style={STYLES.label}>
+                {k.replace("Expiry", "").toUpperCase()}
+              </label>
+              <input
+                className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+                type="date"
+                value={f[k]}
+                onChange={(e) => setF({ ...f, [k]: e.target.value })}
+              />
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={save}
+          style={{ ...STYLES.btnPrimary, marginTop: "20px" }}
+        >
+          SAVE CHANGES
+        </button>
       </div>
     </div>
   );
 };
 
-// --- COMPONENT: FUEL MANAGER ---
+// --- COMPONENT: ENTRY FORM (With Enhanced Validation) ---
+const EntryForm = ({ buses, setView, preSelectedBusId, showNotif }) => {
+  const [id, setId] = useState(preSelectedBusId || "");
+  const [odo, setOdo] = useState("");
+  const [stu, setStu] = useState("");
+  const [tch, setTch] = useState("");
+  const b = buses.find((x) => x.id === id);
+
+  useEffect(() => {
+    if (preSelectedBusId) setId(preSelectedBusId);
+  }, [preSelectedBusId]);
+
+  const save = async () => {
+    if (!id || !odo) return;
+    const lastOdo = b.lastOdometer || 0;
+    const currentOdo = parseFloat(odo);
+    const dist = currentOdo - lastOdo;
+    const studentsPresent = parseInt(stu) || 0;
+    const teachersPresent = parseInt(tch) || 0;
+    const studentsAssigned = b.assignedStudents || 0;
+    const teachersAssigned = b.assignedTeachers || 0;
+
+    // VALIDATION CHECKS
+    if (currentOdo < lastOdo) {
+      alert(
+        `ERROR: Current Odometer (${currentOdo}) cannot be less than previous (${lastOdo})!`
+      );
+      return;
+    }
+
+    // Check 1: Distance > 100
+    if (dist > 100) {
+      if (
+        !window.confirm(
+          `WARNING: Distance is ${dist}km (Over 100km). Do you want to proceed?`
+        )
+      )
+        return;
+    }
+    // Check 2: Student Capacity
+    if (studentsAssigned > 0 && studentsPresent > studentsAssigned) {
+      if (
+        !window.confirm(
+          `WARNING: Entered student count (${studentsPresent}) exceeds capacity (${studentsAssigned}). Proceed?`
+        )
+      )
+        return;
+    }
+    // Check 3: Teacher Capacity (NEW)
+    if (teachersAssigned > 0 && teachersPresent > teachersAssigned) {
+      if (
+        !window.confirm(
+          `WARNING: Entered teacher count (${teachersPresent}) exceeds capacity (${teachersAssigned}). Proceed?`
+        )
+      )
+        return;
+    }
+
+    await addDoc(
+      collection(db, "artifacts", appId, "public", "data", "entries"),
+      {
+        busNumber: b.busNumber,
+        busId: id,
+        odometer: currentOdo,
+        previousOdometer: lastOdo,
+        distance: dist,
+        studentsPresent: studentsPresent,
+        teachersPresent: teachersPresent,
+        timestamp: serverTimestamp(),
+      }
+    );
+    await updateDoc(
+      doc(db, "artifacts", appId, "public", "data", "buses", id),
+      { lastOdometer: currentOdo }
+    );
+
+    // GREEN POPUP
+    showNotif("ENTRY RECORDED SUCCESSFULLY!");
+    setView("dashboard");
+  };
+
+  return (
+    <div className="max-w-lg mx-auto">
+      <div className="flex items-center mb-6">
+        <button
+          onClick={() => setView("dashboard")}
+          className="mr-3 text-[#8D6E63]"
+        >
+          <ChevronRight className="rotate-180" />
+        </button>
+        <h2 className="text-xl font-bold text-[#F2E6D8]">Log Arrival</h2>
+      </div>
+      {!preSelectedBusId && (
+        <div className="mb-6 relative">
+          <select
+            className="w-full p-4 bg-[#2C1E16] border border-[#4A3426] text-[#F2E6D8] rounded-xl font-bold focus:ring-2 focus:ring-[#C19A6B] outline-none"
+            onChange={(e) => setId(e.target.value)}
+            value={id}
+          >
+            <option value="">-- Select Bus --</option>
+            {buses.map((x) => (
+              <option key={x.id} value={x.id}>
+                Bus {x.busNumber}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {id && b && (
+        <div className="space-y-4 animate-fade-in">
+          {preSelectedBusId && (
+            <div className="bg-[#C19A6B] p-3 rounded-lg text-[#1E140F] font-bold text-center mb-4">
+              LOGGING BUS {b.busNumber}
+            </div>
+          )}
+          <div className="bg-[#2C1E16] p-4 rounded-xl shadow-md border border-[#4A3426]">
+            <div className="flex justify-between items-end mb-2">
+              <label className="text-[10px] font-bold text-[#8D6E63] uppercase">
+                Odometer Reading
+              </label>
+              <div className="text-right">
+                <span className="text-[10px] text-[#8D6E63] uppercase block">
+                  Previous
+                </span>
+                <span className="text-2xl font-black text-[#C19A6B] block tracking-wide">
+                  {b.lastOdometer || 0}
+                </span>
+              </div>
+            </div>
+            <input
+              type="number"
+              style={{ ...STYLES.input, fontSize: "24px", fontWeight: "bold" }}
+              value={odo}
+              onChange={(e) => setOdo(e.target.value)}
+              placeholder="00000"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] font-bold text-[#8D6E63] uppercase mb-1 block">
+                Students (Max: {b.assignedStudents})
+              </label>
+              <input
+                type="number"
+                style={STYLES.input}
+                value={stu}
+                onChange={(e) => setStu(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-[#8D6E63] uppercase mb-1 block">
+                Teachers (Max: {b.assignedTeachers})
+              </label>
+              <input
+                type="number"
+                style={STYLES.input}
+                value={tch}
+                onChange={(e) => setTch(e.target.value)}
+              />
+            </div>
+          </div>
+          <button onClick={save} style={STYLES.btnPrimary}>
+            <Save className="mr-2 h-5 w-5" /> CONFIRM ENTRY
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- COMPONENT: DASHBOARD (Clickable Overview + BOLD Stats) ---
+const Dashboard = ({ buses, entries, onLog, onViewEntry, onViewProfile }) => {
+  const today = new Date().toDateString();
+  const tE = entries.filter(
+    (e) =>
+      e.timestamp &&
+      new Date(e.timestamp.seconds * 1000).toDateString() === today
+  );
+  const pendingBuses = buses.filter((b) => !tE.find((e) => e.busId === b.id));
+
+  const scrollToArrived = () => {
+    const el = document.getElementById("arrived-section");
+    if (el) el.scrollIntoView({ behavior: "smooth" });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div
+        onClick={scrollToArrived}
+        className="bg-[#2C1E16] p-4 rounded-xl border border-[#4A3426] shadow-lg cursor-pointer hover:border-[#C19A6B] transition-colors group"
+      >
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-[#C19A6B] text-xs font-bold uppercase flex items-center">
+            <Clock className="w-3 h-3 mr-2" /> Today's Overview
+          </h3>
+          <span className="text-[9px] text-[#8D6E63] uppercase group-hover:text-[#F2E6D8] transition-colors">
+            Click to View List &darr;
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-[#1E140F] p-3 rounded-lg text-center border border-[#4A3426]">
+            <span className="block text-2xl font-bold text-[#F2E6D8]">
+              {tE.length}{" "}
+              <span className="text-sm text-[#5D4037]">/ {buses.length}</span>
+            </span>
+            <span className="text-[9px] text-[#8D6E63] uppercase font-bold">
+              Buses Arrived
+            </span>
+          </div>
+          <div className="bg-[#1E140F] p-3 rounded-lg text-center border border-[#4A3426]">
+            <span className="block text-2xl font-bold text-[#F2E6D8]">
+              {tE.reduce((a, c) => a + (c.studentsPresent || 0), 0)}
+            </span>
+            <span className="text-[9px] text-[#8D6E63] uppercase font-bold">
+              Students
+            </span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 className="text-[#8D6E63] text-xs font-bold uppercase mb-2 ml-1">
+          Pending Arrivals ({pendingBuses.length})
+        </h3>
+        <div className="space-y-2">
+          {pendingBuses.length === 0 ? (
+            <div className="p-3 bg-[#1B2E1E] text-[#A5D6A7] rounded-lg border border-[#2E4C33] text-xs font-bold flex items-center justify-center">
+              <CheckCircle className="h-4 w-4 mr-2" /> All buses have arrived!
+            </div>
+          ) : (
+            pendingBuses.map((b) => (
+              <div
+                key={b.id}
+                className="bg-[#2C1E16] p-3 rounded-lg border border-[#4A3426] flex justify-between items-center shadow-sm"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="bg-[#1E140F] text-[#C19A6B] font-bold text-xs p-2 rounded w-10 text-center border border-[#4A3426]">
+                    {b.busNumber}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-[#F2E6D8]">
+                      {b.regNumber}
+                    </div>
+                    <div className="text-[10px] text-[#8D6E63]">
+                      {b.driverName || "No Driver"}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => onViewProfile(b.id)}
+                    style={STYLES.btnSecondary}
+                  >
+                    View
+                  </button>
+                  <button onClick={() => onLog(b.id)} style={STYLES.btnSmall}>
+                    Log
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {tE.length > 0 && (
+        <div id="arrived-section">
+          <h3 className="text-[#8D6E63] text-xs font-bold uppercase mb-2 ml-1 mt-6">
+            Arrived Today (Click to View)
+          </h3>
+          <div className="space-y-3">
+            {tE.map((e) => {
+              const b = buses.find((x) => x.id === e.busId) || {};
+              const sAbs = (b.assignedStudents || 0) - e.studentsPresent;
+              const tAbs = (b.assignedTeachers || 0) - e.teachersPresent;
+              return (
+                <div
+                  key={e.id}
+                  onClick={() => onViewEntry(e)}
+                  className="bg-[#1E140F] p-4 rounded-xl border-l-4 border-[#C19A6B] cursor-pointer hover:bg-[#251610] transition-colors shadow-lg"
+                >
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="font-bold text-lg text-[#F2E6D8]">
+                      Bus {e.busNumber}
+                    </span>
+                    <span className="text-xs text-[#8D6E63] bg-[#2C1E16] px-2 py-1 rounded border border-[#4A3426]">
+                      CLICK TO VIEW
+                    </span>
+                  </div>
+                  {/* BOLD STATS GRID */}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="text-[#F2E6D8] font-bold">
+                      ⏰{" "}
+                      {new Date(e.timestamp?.seconds * 1000).toLocaleTimeString(
+                        [],
+                        { hour: "2-digit", minute: "2-digit" }
+                      )}
+                    </div>
+                    <div className="text-[#F2E6D8] font-bold">
+                      🚗 {e.distance} km
+                    </div>
+                    <div className="text-[#A5D6A7] font-bold">
+                      👨‍🎓 P: {e.studentsPresent} /{" "}
+                      <span className="text-[#EF9A9A]">A: {sAbs}</span>
+                    </div>
+                    <div className="text-[#FFB74D] font-bold">
+                      👨‍🏫 P: {e.teachersPresent} /{" "}
+                      <span className="text-[#EF9A9A]">A: {tAbs}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- FUEL MANAGEMENT ---
 const FuelManager = ({ buses, fuelLogs, setView, showNotif }) => {
   const [mode, setMode] = useState("log");
   const [rates, setRates] = useState({ diesel: 90, adblue: 50 });
@@ -1046,283 +1461,6 @@ const FuelManager = ({ buses, fuelLogs, setView, showNotif }) => {
   );
 };
 
-// --- DASHBOARD (Updated) ---
-const Dashboard = ({ buses, entries, onLog, onViewEntry, onViewProfile }) => {
-  const today = new Date().toDateString();
-  const tE = entries.filter(
-    (e) =>
-      e.timestamp &&
-      new Date(e.timestamp.seconds * 1000).toDateString() === today
-  );
-  const pendingBuses = buses.filter((b) => !tE.find((e) => e.busId === b.id));
-
-  const scrollToArrived = () => {
-    const el = document.getElementById("arrived-section");
-    if (el) el.scrollIntoView({ behavior: "smooth" });
-  };
-
-  return (
-    <div className="space-y-6">
-      <div
-        onClick={scrollToArrived}
-        className="bg-[#2C1E16] p-4 rounded-xl border border-[#4A3426] shadow-lg cursor-pointer hover:border-[#C19A6B] transition-colors group"
-      >
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-[#C19A6B] text-xs font-bold uppercase flex items-center">
-            <Clock className="w-3 h-3 mr-2" /> Today's Overview
-          </h3>
-          <span className="text-[9px] text-[#8D6E63] uppercase group-hover:text-[#F2E6D8] transition-colors">
-            Click to View List &darr;
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[#1E140F] p-3 rounded-lg text-center border border-[#4A3426]">
-            <span className="block text-2xl font-bold text-[#F2E6D8]">
-              {tE.length}{" "}
-              <span className="text-sm text-[#5D4037]">/ {buses.length}</span>
-            </span>
-            <span className="text-[9px] text-[#8D6E63] uppercase font-bold">
-              Buses Arrived
-            </span>
-          </div>
-          <div className="bg-[#1E140F] p-3 rounded-lg text-center border border-[#4A3426]">
-            <span className="block text-2xl font-bold text-[#F2E6D8]">
-              {tE.reduce((a, c) => a + (c.studentsPresent || 0), 0)}
-            </span>
-            <span className="text-[9px] text-[#8D6E63] uppercase font-bold">
-              Students
-            </span>
-          </div>
-        </div>
-      </div>
-      <div>
-        <h3 className="text-[#8D6E63] text-xs font-bold uppercase mb-2 ml-1">
-          Pending Arrivals ({pendingBuses.length})
-        </h3>
-        <div className="space-y-2">
-          {pendingBuses.length === 0 ? (
-            <div className="p-3 bg-[#1B2E1E] text-[#A5D6A7] rounded-lg border border-[#2E4C33] text-xs font-bold flex items-center justify-center">
-              <CheckCircle className="h-4 w-4 mr-2" /> Alhamdullah! All buses
-              have arrived!
-            </div>
-          ) : (
-            pendingBuses.map((b) => (
-              <div
-                key={b.id}
-                className="bg-[#2C1E16] p-3 rounded-lg border border-[#4A3426] flex justify-between items-center shadow-sm"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="bg-[#1E140F] text-[#C19A6B] font-bold text-xs p-2 rounded w-10 text-center border border-[#4A3426]">
-                    {b.busNumber}
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-[#F2E6D8]">
-                      {b.regNumber}
-                    </div>
-                    <div className="text-[10px] text-[#8D6E63]">
-                      {b.driverName || "No Driver"}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => onViewProfile(b.id)}
-                    style={STYLES.btnSecondary}
-                  >
-                    View
-                  </button>
-                  <button onClick={() => onLog(b.id)} style={STYLES.btnSmall}>
-                    Log
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {tE.length > 0 && (
-        <div id="arrived-section">
-          <h3 className="text-[#8D6E63] text-xs font-bold uppercase mb-2 ml-1 mt-6">
-            Arrived Today (Click to View)
-          </h3>
-          <div className="space-y-2">
-            {tE.map((e) => (
-              <div
-                key={e.id}
-                onClick={() => onViewEntry(e)}
-                className="bg-[#1E140F] p-3 rounded-lg border-l-4 border-[#C19A6B] flex justify-between items-center cursor-pointer hover:bg-[#251610] transition-colors"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="font-bold text-[#F2E6D8] text-sm">
-                    Bus {e.busNumber}
-                  </div>
-                  <div className="text-[10px] text-[#8D6E63] border-l border-[#4A3426] pl-2">
-                    {new Date(e.timestamp?.seconds * 1000).toLocaleTimeString(
-                      [],
-                      { hour: "2-digit", minute: "2-digit" }
-                    )}
-                  </div>
-                </div>
-                <div className="text-[10px] text-[#C19A6B] font-bold">
-                  {e.studentsPresent} Students • {e.distance} km
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// --- ENTRY FORM ---
-const EntryForm = ({ buses, setView, preSelectedBusId, showNotif }) => {
-  const [id, setId] = useState(preSelectedBusId || "");
-  const [odo, setOdo] = useState("");
-  const [stu, setStu] = useState("");
-  const [tch, setTch] = useState("");
-  const b = buses.find((x) => x.id === id);
-
-  useEffect(() => {
-    if (preSelectedBusId) setId(preSelectedBusId);
-  }, [preSelectedBusId]);
-
-  const save = async () => {
-    if (!id || !odo) return;
-    const lastOdo = b.lastOdometer || 0;
-    const currentOdo = parseFloat(odo);
-    const dist = currentOdo - lastOdo;
-    const studentsPresent = parseInt(stu) || 0;
-    const studentsAssigned = b.assignedStudents || 0;
-
-    if (currentOdo < lastOdo) {
-      alert(
-        `ERROR: Current Odometer (${currentOdo}) cannot be less than previous (${lastOdo})!`
-      );
-      return;
-    }
-
-    // NEW CHECK: Student Capacity
-    if (studentsAssigned > 0 && studentsPresent > studentsAssigned) {
-      if (
-        !window.confirm(
-          `WARNING: Entered students (${studentsPresent}) exceeds capacity (${studentsAssigned}). Proceed?`
-        )
-      )
-        return;
-    }
-
-    await addDoc(
-      collection(db, "artifacts", appId, "public", "data", "entries"),
-      {
-        busNumber: b.busNumber,
-        busId: id,
-        odometer: currentOdo,
-        previousOdometer: lastOdo,
-        distance: dist,
-        studentsPresent: studentsPresent,
-        teachersPresent: parseInt(tch) || 0,
-        timestamp: serverTimestamp(),
-      }
-    );
-    await updateDoc(
-      doc(db, "artifacts", appId, "public", "data", "buses", id),
-      { lastOdometer: currentOdo }
-    );
-    showNotif("ENTRY RECORDED SUCCESSFULLY!");
-    setView("dashboard");
-  };
-
-  return (
-    <div className="max-w-lg mx-auto">
-      <div className="flex items-center mb-6">
-        <button
-          onClick={() => setView("dashboard")}
-          className="mr-3 text-[#8D6E63]"
-        >
-          <ChevronRight className="rotate-180" />
-        </button>
-        <h2 className="text-xl font-bold text-[#F2E6D8]">Log Arrival</h2>
-      </div>
-      {!preSelectedBusId && (
-        <div className="mb-6 relative">
-          <select
-            className="w-full p-4 bg-[#2C1E16] border border-[#4A3426] text-[#F2E6D8] rounded-xl font-bold focus:ring-2 focus:ring-[#C19A6B] outline-none"
-            onChange={(e) => setId(e.target.value)}
-            value={id}
-          >
-            <option value="">-- Select Bus --</option>
-            {buses.map((x) => (
-              <option key={x.id} value={x.id}>
-                Bus {x.busNumber}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-      {id && b && (
-        <div className="space-y-4 animate-fade-in">
-          {preSelectedBusId && (
-            <div className="bg-[#C19A6B] p-3 rounded-lg text-[#1E140F] font-bold text-center mb-4">
-              LOGGING BUS {b.busNumber}
-            </div>
-          )}
-          <div className="bg-[#2C1E16] p-4 rounded-xl shadow-md border border-[#4A3426]">
-            <div className="flex justify-between items-end mb-2">
-              <label className="text-[10px] font-bold text-[#8D6E63] uppercase">
-                Odometer Reading
-              </label>
-              <div className="text-right">
-                <span className="text-[10px] text-[#8D6E63] uppercase block">
-                  Previous
-                </span>
-                <span className="text-2xl font-black text-[#C19A6B] block tracking-wide">
-                  {b.lastOdometer || 0}
-                </span>
-              </div>
-            </div>
-            <input
-              type="number"
-              style={{ ...STYLES.input, fontSize: "24px", fontWeight: "bold" }}
-              value={odo}
-              onChange={(e) => setOdo(e.target.value)}
-              placeholder="00000"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-[10px] font-bold text-[#8D6E63] uppercase mb-1 block">
-                Students (Max: {b.assignedStudents})
-              </label>
-              <input
-                type="number"
-                style={STYLES.input}
-                value={stu}
-                onChange={(e) => setStu(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-[#8D6E63] uppercase mb-1 block">
-                Teachers (Max: {b.assignedTeachers})
-              </label>
-              <input
-                type="number"
-                style={STYLES.input}
-                value={tch}
-                onChange={(e) => setTch(e.target.value)}
-              />
-            </div>
-          </div>
-          <button onClick={save} style={STYLES.btnPrimary}>
-            <Save className="mr-2 h-5 w-5" /> CONFIRM ENTRY
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
-
 const EditLogForm = ({ entry, setView, buses, showNotif }) => {
   const [odo, setOdo] = useState(entry?.odometer || "");
   const [stu, setStu] = useState(entry?.studentsPresent || "");
@@ -1412,6 +1550,109 @@ const EditLogForm = ({ entry, setView, buses, showNotif }) => {
   );
 };
 
+// --- COMPONENT: REPORTS VIEW (Renamed from History) ---
+const ReportsView = ({ entries, buses, fuelLogs }) => {
+  const [startDate, setStartDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [endDate, setEndDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+
+  const generateReport = () => {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    const filteredEntries = entries.filter((e) => {
+      const d = new Date(e.timestamp?.seconds * 1000);
+      return d >= start && d <= end;
+    });
+
+    if (filteredEntries.length === 0) {
+      alert("No data found for selected range.");
+      return;
+    }
+
+    const reportData = filteredEntries.map((e) => {
+      const b = buses.find((x) => x.busNumber === e.busNumber) || {};
+      return {
+        Date: new Date(e.timestamp?.seconds * 1000).toLocaleDateString(),
+        Time: new Date(e.timestamp?.seconds * 1000).toLocaleTimeString(),
+        BusNumber: e.busNumber,
+        RegNumber: b.regNumber || "",
+        DriverName: b.driverName || "",
+        DriverContact: b.driverContact || "",
+        Attendant: b.attendantName || "",
+        Odometer: e.odometer,
+        Distance: e.distance,
+        StudentsPresent: e.studentsPresent,
+        TeachersPresent: e.teachersPresent,
+        InsuranceExpiry: b.insuranceExpiry || "",
+        PermitExpiry: b.permitExpiry || "",
+        FitnessExpiry: b.fitnessExpiry || "",
+      };
+    });
+    downloadCSV(reportData, `Master_Report_${startDate}_to_${endDate}.csv`);
+  };
+
+  return (
+    <div className="space-y-4 p-2">
+      <h2 className="text-xl font-bold text-[#F2E6D8] mb-4 flex items-center">
+        <ClipboardList className="mr-2 text-[#C19A6B]" /> Reports Center
+      </h2>
+      <div style={STYLES.card}>
+        <h3 className="text-[#8D6E63] text-xs font-bold uppercase mb-3">
+          Export Data Range
+        </h3>
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label style={STYLES.label}>From Date</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full bg-[#120B09] text-[#F2E6D8] border border-[#4A3426] rounded p-2 text-xs outline-none"
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>To Date</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full bg-[#120B09] text-[#F2E6D8] border border-[#4A3426] rounded p-2 text-xs outline-none"
+            />
+          </div>
+        </div>
+        <button onClick={generateReport} style={STYLES.btnPrimary}>
+          <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel (CSV)
+        </button>
+      </div>
+      <h3 className="text-[#C19A6B] text-xs font-bold uppercase mt-6 mb-2">
+        Recent Activity
+      </h3>
+      <div className="space-y-2">
+        {entries.slice(0, 5).map((e) => (
+          <div
+            key={e.id}
+            className="bg-[#2C1E16] p-3 rounded-lg border-l-4 border-[#C19A6B] flex justify-between items-center"
+          >
+            <div>
+              <span className="font-bold text-sm text-[#F2E6D8]">
+                Bus {e.busNumber}
+              </span>
+            </div>
+            <div className="text-[10px] text-[#8D6E63]">
+              {new Date(e.timestamp?.seconds * 1000).toLocaleDateString()}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const DocsView = ({ buses }) => {
   const check = (d) => {
     if (!d) return { c: "text-[#5D4037]", t: "N/A", score: 0 };
@@ -1490,7 +1731,6 @@ const DocsView = ({ buses }) => {
   );
 };
 
-// --- COMPONENT: ADMIN PANEL (Added Labels) ---
 const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
   const [f, setF] = useState({});
   const fRef = useRef(null);
@@ -1662,84 +1902,106 @@ const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
           <PlusCircle className="mr-2 h-4 w-4" /> Add Bus Profile
         </h3>
         <div className="grid grid-cols-2 gap-3 mb-3">
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Bus No (51)"
-            value={f.busNumber || ""}
-            onChange={(e) => setF({ ...f, busNumber: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Reg No"
-            value={f.regNumber || ""}
-            onChange={(e) => setF({ ...f, regNumber: e.target.value })}
-          />
+          <div>
+            <label style={STYLES.label}>BUS NO</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.busNumber || ""}
+              onChange={(e) => setF({ ...f, busNumber: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>REG NO</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.regNumber || ""}
+              onChange={(e) => setF({ ...f, regNumber: e.target.value })}
+            />
+          </div>
         </div>
 
         {/* EXPANDED FIELDS */}
         <div className="grid grid-cols-2 gap-3 mt-3">
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Driver Name"
-            value={f.driverName || ""}
-            onChange={(e) => setF({ ...f, driverName: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Driver Contact"
-            value={f.driverContact || ""}
-            onChange={(e) => setF({ ...f, driverContact: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Attendant Name"
-            value={f.attendantName || ""}
-            onChange={(e) => setF({ ...f, attendantName: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Attendant Contact"
-            value={f.attendantContact || ""}
-            onChange={(e) => setF({ ...f, attendantContact: e.target.value })}
-          />
+          <div>
+            <label style={STYLES.label}>DRIVER</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.driverName || ""}
+              onChange={(e) => setF({ ...f, driverName: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>PHONE</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.driverContact || ""}
+              onChange={(e) => setF({ ...f, driverContact: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>ATTENDANT</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.attendantName || ""}
+              onChange={(e) => setF({ ...f, attendantName: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>PHONE</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              value={f.attendantContact || ""}
+              onChange={(e) => setF({ ...f, attendantContact: e.target.value })}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 mt-3">
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Initial Odo"
-            type="number"
-            value={f.lastOdometer || ""}
-            onChange={(e) => setF({ ...f, lastOdometer: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Tank Cap (L)"
-            type="number"
-            value={f.tankCapacity || ""}
-            onChange={(e) => setF({ ...f, tankCapacity: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Est. Mileage"
-            type="number"
-            value={f.estMileage || ""}
-            onChange={(e) => setF({ ...f, estMileage: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Students Assigned"
-            type="number"
-            value={f.assignedStudents || ""}
-            onChange={(e) => setF({ ...f, assignedStudents: e.target.value })}
-          />
-          <input
-            className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
-            placeholder="Teachers Assigned"
-            type="number"
-            value={f.assignedTeachers || ""}
-            onChange={(e) => setF({ ...f, assignedTeachers: e.target.value })}
-          />
+          <div>
+            <label style={STYLES.label}>INITIAL ODO</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.lastOdometer || ""}
+              onChange={(e) => setF({ ...f, lastOdometer: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>TANK (L)</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.tankCapacity || ""}
+              onChange={(e) => setF({ ...f, tankCapacity: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>MILEAGE</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.estMileage || ""}
+              onChange={(e) => setF({ ...f, estMileage: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>STU CAP</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.assignedStudents || ""}
+              onChange={(e) => setF({ ...f, assignedStudents: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={STYLES.label}>TCH CAP</label>
+            <input
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
+              type="number"
+              value={f.assignedTeachers || ""}
+              onChange={(e) => setF({ ...f, assignedTeachers: e.target.value })}
+            />
+          </div>
         </div>
 
         <h4 className="text-xs text-[#8D6E63] uppercase font-bold mt-4 mb-2">
@@ -1749,52 +2011,52 @@ const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
           <div>
             <label style={STYLES.label}>INSURANCE</label>
             <input
-              className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
               type="date"
               value={f.insuranceExpiry || ""}
               onChange={(e) => setF({ ...f, insuranceExpiry: e.target.value })}
             />
           </div>
           <div>
-            <label style={STYLES.label}>ROUTE PERMIT</label>
+            <label style={STYLES.label}>PERMIT</label>
             <input
-              className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
               type="date"
               value={f.permitExpiry || ""}
               onChange={(e) => setF({ ...f, permitExpiry: e.target.value })}
             />
           </div>
           <div>
-            <label style={STYLES.label}>TOKEN TAX</label>
+            <label style={STYLES.label}>TAX</label>
             <input
-              className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
               type="date"
               value={f.taxExpiry || ""}
               onChange={(e) => setF({ ...f, taxExpiry: e.target.value })}
             />
           </div>
           <div>
-            <label style={STYLES.label}>POLLUTION (PUC)</label>
+            <label style={STYLES.label}>POLLUTION</label>
             <input
-              className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
               type="date"
               value={f.pollutionExpiry || ""}
               onChange={(e) => setF({ ...f, pollutionExpiry: e.target.value })}
             />
           </div>
           <div>
-            <label style={STYLES.label}>GPS CERT</label>
+            <label style={STYLES.label}>GPS</label>
             <input
-              className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
               type="date"
               value={f.gpsExpiry || ""}
               onChange={(e) => setF({ ...f, gpsExpiry: e.target.value })}
             />
           </div>
           <div>
-            <label style={STYLES.label}>FIRE EXT.</label>
+            <label style={STYLES.label}>FIRE EXT</label>
             <input
-              className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
               type="date"
               value={f.extinguisherExpiry || ""}
               onChange={(e) =>
@@ -1805,16 +2067,16 @@ const AdminPanel = ({ buses, entries, fuelLogs, showNotif }) => {
           <div>
             <label style={STYLES.label}>FIRST AID</label>
             <input
-              className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
               type="date"
               value={f.firstAidExpiry || ""}
               onChange={(e) => setF({ ...f, firstAidExpiry: e.target.value })}
             />
           </div>
           <div>
-            <label style={STYLES.label}>CAMERA APP</label>
+            <label style={STYLES.label}>CAMERA</label>
             <input
-              className="w-full p-3 bg-[#120B09] border border-[#4A3426] rounded-lg text-[#F2E6D8] text-sm outline-none"
+              className="w-full p-2 bg-[#120B09] border border-[#4A3426] rounded text-[#F2E6D8] text-sm"
               type="date"
               value={f.cameraExpiry || ""}
               onChange={(e) => setF({ ...f, cameraExpiry: e.target.value })}
